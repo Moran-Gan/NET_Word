@@ -644,20 +644,31 @@ void Parm_Set_Function(void)
 			}
 			break;
 			case key_refresh_electricity:
-				Display_Electricity_Curve();
+			case key_electricity_trend_interface:
+			case key_electricity_trend_hour_interface:
 				write_PIC_Set(198);
+				Display_Electricity_Curve();
 				break;
 			case key_electricity_daily_interface:
-				Display_Electricity_Curve();
 				write_PIC_Set(201);
+				Display_Electricity_Curve();
 				break;
 			case key_electricity_monthly_interface:
-				Display_Electricity_Curve();
 				write_PIC_Set(203);
+				Display_Electricity_Curve();
 				break;
 			case key_electricity_yearly_interface:
-				Display_Electricity_Curve();
 				write_PIC_Set(206);
+				Display_Electricity_Curve();
+				break;
+			case key_electricity_trend_day_interface:
+				write_PIC_Set(199);
+				Display_Electricity_Curve();
+				break;
+			case key_electricity_trend_month_interface:
+			case key_electricity_trend_year_interface:
+				write_PIC_Set(200);
+				Display_Electricity_Curve();
 				break;
 //			case key_Aging_sop:
 //			{

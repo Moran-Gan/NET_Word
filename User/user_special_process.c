@@ -1100,7 +1100,7 @@ void Var_Init(void)
 	u16 savedYear;
 	u16 savedMonth;
 	u16 savedDay;
-	u16 elecVpTmp;
+	u8 elecNeedSave;
 	T_timer_2ms = 0;
 	T_timer_10ms = 0;
 	T_timer_100ms = 0;
@@ -1191,11 +1191,6 @@ void Var_Init(void)
 
 	// read total electricity
 	Time_Update();
-	totalHour = 0;
-	Wite_VP(DISP_Electricity_H1+system.hour,totalHour);
-	read_dgus_vp(DISP_Electricity_D1+system.date-1, (u8 *)&totalDay, 1);
-	read_dgus_vp(DISP_Electricity_M1+system.month-1, (u8 *)&elecVpTmp, 1);
-	totalMonth = elecVpTmp;
 
 	SOP_MODE = 0;
 	Enable_Host_Unlock = 0;
@@ -1211,18 +1206,41 @@ void Var_Init(void)
 	savedYear = Read_VP(ELECTRICITY_STATISTICS_YEAR);
 	savedMonth = Read_VP(ELECTRICITY_STATISTICS_MONTH);
 	savedDay = Read_VP(ELECTRICITY_STATISTICS_DAY);
-	//判断掉电保存的年/月/日与当前是否一致；按优先级处理，避免年变时再重复执行月、日分支
-	if(savedYear != system.year)
+
+	/* 与日/月一致：从 VP 恢复当前小时，避免每次上电丢掉本小时已累计电量 */
+	totalHour = dailyElectricityNum[system.hour];
+	if ((system.date >= 1) && (system.date <= 31))
 	{
-		lastHourElectricity = dailyElectricityNum[23];
-		if (savedDay >= 1 && savedDay <= 31)
+		totalDay = monthlyElectricityNum[system.date - 1];
+	}
+	else
+	{
+		totalDay = 0;
+	}
+	if ((system.month >= 1) && (system.month <= 12))
+	{
+		totalMonth = yearlyElectricityNum[system.month - 1];
+	}
+	else
+	{
+		totalMonth = 0;
+	}
+
+	elecNeedSave = 0;
+	/* 判断掉电保存的年/月/日与当前是否一致；按优先级处理，避免年变时再重复执行月、日分支 */
+	if ((savedYear > 99) || (savedMonth < 1) || (savedMonth > 12) || (savedDay < 1) || (savedDay > 31))
+	{
+		/* 无有效掉电日期（首次上电/EEPROM复位）：保留已恢复数据，只同步日期戳 */
+		elecNeedSave = 1;
+	}
+	else if (savedYear != system.year)
+	{
+		if (dailyElectricityNum[23] != 0)
 		{
-			yesterdayElectricity = monthlyElectricityNum[savedDay - 1];
+			lastHourElectricity = dailyElectricityNum[23];
 		}
-		if (savedMonth >= 1 && savedMonth <= 12)
-		{
-			lastMonthElectricity = yearlyElectricityNum[savedMonth - 1];
-		}
+		yesterdayElectricity = monthlyElectricityNum[savedDay - 1];
+		lastMonthElectricity = yearlyElectricityNum[savedMonth - 1];
 		totalHour = 0;
 		totalDay = 0;
 		totalMonth = 0;
@@ -1232,39 +1250,49 @@ void Var_Init(void)
 		write_dgus_vp(DISP_Electricity_H1, (u8 *)&dailyElectricityNum, 24);
 		write_dgus_vp(DISP_Electricity_D1, (u8 *)&monthlyElectricityNum, 31);
 		write_dgus_vp(DISP_Electricity_M1, (u8 *)&yearlyElectricityNum, 12);
+		elecNeedSave = 1;
 	}
-	else if(savedMonth != system.month)
+	else if (savedMonth != system.month)
 	{
-		//月不同：清空小时与当月日曲线（D1），保留本年每月（M1）
-		lastHourElectricity = dailyElectricityNum[23];
-		if (savedDay >= 1 && savedDay <= 31)
+		/* 月不同：清空小时与当月日曲线（D1），保留本年每月（M1），并清零本月槽 */
+		if (dailyElectricityNum[23] != 0)
 		{
-			yesterdayElectricity = monthlyElectricityNum[savedDay - 1];
+			lastHourElectricity = dailyElectricityNum[23];
 		}
-		if (savedMonth >= 1 && savedMonth <= 12)
-		{
-			lastMonthElectricity = yearlyElectricityNum[savedMonth - 1];
-		}
+		yesterdayElectricity = monthlyElectricityNum[savedDay - 1];
+		lastMonthElectricity = yearlyElectricityNum[savedMonth - 1];
 		totalHour = 0;
 		totalDay = 0;
 		totalMonth = 0;
 		memset(dailyElectricityNum, 0, sizeof(dailyElectricityNum));
 		memset(monthlyElectricityNum, 0, sizeof(monthlyElectricityNum));
+		if ((system.month >= 1) && (system.month <= 12))
+		{
+			yearlyElectricityNum[system.month - 1] = 0;
+		}
 		write_dgus_vp(DISP_Electricity_H1, (u8 *)&dailyElectricityNum, 24);
 		write_dgus_vp(DISP_Electricity_D1, (u8 *)&monthlyElectricityNum, 31);
+		write_dgus_vp(DISP_Electricity_M1, (u8 *)&yearlyElectricityNum, 12);
+		elecNeedSave = 1;
 	}
-	else if(savedDay != system.date)
+	else if (savedDay != system.date)
 	{
-		//日不同：清空当日小时（H1），并清零当日在月度日曲线中的累计（D1 对应当日槽）
-		lastHourElectricity = dailyElectricityNum[23];
-		if (savedDay >= 1 && savedDay <= 31)
+		/* 日不同：清空当日小时（H1），并清零当日在月度日曲线中的累计（D1 对应当日槽） */
+		if (dailyElectricityNum[23] != 0)
 		{
-			yesterdayElectricity = monthlyElectricityNum[savedDay - 1];
+			lastHourElectricity = dailyElectricityNum[23];
 		}
+		yesterdayElectricity = monthlyElectricityNum[savedDay - 1];
+		totalHour = 0;
 		totalDay = 0;
 		memset(dailyElectricityNum, 0, sizeof(dailyElectricityNum));
+		if ((system.date >= 1) && (system.date <= 31))
+		{
+			monthlyElectricityNum[system.date - 1] = 0;
+		}
 		write_dgus_vp(DISP_Electricity_H1, (u8 *)&dailyElectricityNum, 24);
 		write_dgus_vp(DISP_Electricity_D1, (u8 *)&monthlyElectricityNum, 31);
+		elecNeedSave = 1;
 	}
 	else
 	{
@@ -1292,26 +1320,42 @@ void Var_Init(void)
 	if (totalDay > 6000)
 	{
 		totalDay = 0;
-		monthlyElectricityNum[system.date - 1] = 0;
-		Wite_VP(DISP_Electricity_D1 + system.date - 1, 0);
+		if ((system.date >= 1) && (system.date <= 31))
+		{
+			monthlyElectricityNum[system.date - 1] = 0;
+			Wite_VP(DISP_Electricity_D1 + system.date - 1, 0);
+		}
 	}
 	if (totalMonth > 12000UL)
 	{
 		totalMonth = 0;
-		yearlyElectricityNum[system.month - 1] = 0;
-		Wite_VP(DISP_Electricity_M1 + system.month - 1, 0);
+		if ((system.month >= 1) && (system.month <= 12))
+		{
+			yearlyElectricityNum[system.month - 1] = 0;
+			Wite_VP(DISP_Electricity_M1 + system.month - 1, 0);
+		}
 	}
 	totalHour = (u16)(totalHour * 10U);
 	totalDay = (u16)(totalDay * 10U);
 	totalMonth = totalMonth * 10UL;
 
 	Send_modebus_command_06(STATE_ELEC_HOUR + PARAMETER_20_START_ADDRESS, dailyElectricityNum[system.hour]);
-	Send_modebus_command_06(STATE_ELEC_DAILY + PARAMETER_20_START_ADDRESS, monthlyElectricityNum[system.date-1]);
+	if ((system.date >= 1) && (system.date <= 31))
+	{
+		Send_modebus_command_06(STATE_ELEC_DAILY + PARAMETER_20_START_ADDRESS, monthlyElectricityNum[system.date - 1]);
+	}
 	Send_modebus_command_06(STATE_ELEC_MON_H + PARAMETER_20_START_ADDRESS, 0);
-	Send_modebus_command_06(STATE_ELEC_MON_L + PARAMETER_20_START_ADDRESS, yearlyElectricityNum[system.month-1] / 10);
+	if ((system.month >= 1) && (system.month <= 12))
+	{
+		Send_modebus_command_06(STATE_ELEC_MON_L + PARAMETER_20_START_ADDRESS, yearlyElectricityNum[system.month - 1] / 10);
+	}
 	Display_Electricity_Curve();
 	Display_Electricity_Stats();
 	Persist_Elec_Stats_VP();
+	if (elecNeedSave)
+	{
+		EEPROM_Write_page();
+	}
 	//清零sendCache
 	memset(sendCache, 0, sizeof(uint16_t) * 20 * 2);
 }
@@ -1662,6 +1706,10 @@ static void Persist_Elec_Stats_VP(void)
 	Wite_VP(EEPROM_ELEC_YESTERDAY, yesterdayElectricity);
 	Wite_VP(EEPROM_ELEC_LAST_MONTH, lastMonthElectricity);
 	write_dgus_vp(EEPROM_KWH, (u8 *)&ulNumberEl, 2);
+	/* 日期戳与电量一并写入 VP，跨日/跨月后掉电才不会再次被当成“日期变化”清零 */
+	Wite_VP(ELECTRICITY_STATISTICS_YEAR, system.year);
+	Wite_VP(ELECTRICITY_STATISTICS_MONTH, system.month);
+	Wite_VP(ELECTRICITY_STATISTICS_DAY, system.date);
 }
 
 void Display_Electricity_Stats(void)
@@ -1750,8 +1798,8 @@ void Electricity_process(void)
 	static u8 hourRolloverDone = 0;
 	static u8 dayRolloverDone = 0;
 	static u8 monthRolloverDone = 0;
+	static u8 yearRolloverDone = 0;
     // 获取当前时间
-	u8 currentYear = system.year; // 当前年份
 	u8 currentMonth = system.month; // 当前月份
 	u8 currentDate = system.date; // 当前日期
 	u8 currentHour = system.hour; // 当前小时
@@ -1800,20 +1848,29 @@ void Electricity_process(void)
 			}
 			if (totalHour > ELEC_HOUR_MAX_001)
 			{
-				totalHour = 0;
+				totalHour = ELEC_HOUR_MAX_001;
 			}
 			if (totalDay > ELEC_DAY_MAX_001)
 			{
-				totalDay = 0;
+				totalDay = ELEC_DAY_MAX_001;
 			}
 			if (totalMonth > ELEC_MONTH_MAX_001)
 			{
-				totalMonth = 0;
+				totalMonth = ELEC_MONTH_MAX_001;
 			}
 			// 累计电量数据到对应数组（数组/VP 仍为 0.1kWh）
-			dailyElectricityNum[currentHour] = Elec_ToOldU16(totalHour);
-			monthlyElectricityNum[currentDate-1] = Elec_ToOldU16(totalDay);
-			yearlyElectricityNum[currentMonth-1] = Elec_ToOldU16(totalMonth);
+			if (currentHour <= 23)
+			{
+				dailyElectricityNum[currentHour] = Elec_ToOldU16(totalHour);
+			}
+			if ((currentDate >= 1) && (currentDate <= 31))
+			{
+				monthlyElectricityNum[currentDate - 1] = Elec_ToOldU16(totalDay);
+			}
+			if ((currentMonth >= 1) && (currentMonth <= 12))
+			{
+				yearlyElectricityNum[currentMonth - 1] = Elec_ToOldU16(totalMonth);
+			}
 			// 近周期趋势：末槽跟当前累计，曲线实时可见（0.1kWh 量程）
 			trendHourElectricity[23] = Elec_ToOldU16(totalHour);
 			trendDayElectricity[30] = Elec_ToOldU16(totalDay);
@@ -1821,10 +1878,19 @@ void Electricity_process(void)
 			
 			if (Para_pack[PARA_H06_99] == 0)	// WIFI模式下不下发
 			{
-				Send_modebus_command_06(STATE_ELEC_HOUR + PARAMETER_20_START_ADDRESS, dailyElectricityNum[currentHour]);
-				Send_modebus_command_06(STATE_ELEC_DAILY + PARAMETER_20_START_ADDRESS, monthlyElectricityNum[currentDate-1]);
+				if (currentHour <= 23)
+				{
+					Send_modebus_command_06(STATE_ELEC_HOUR + PARAMETER_20_START_ADDRESS, dailyElectricityNum[currentHour]);
+				}
+				if ((currentDate >= 1) && (currentDate <= 31))
+				{
+					Send_modebus_command_06(STATE_ELEC_DAILY + PARAMETER_20_START_ADDRESS, monthlyElectricityNum[currentDate - 1]);
+				}
 				Send_modebus_command_06(STATE_ELEC_MON_H + PARAMETER_20_START_ADDRESS, 0);
-				Send_modebus_command_06(STATE_ELEC_MON_L + PARAMETER_20_START_ADDRESS, yearlyElectricityNum[currentMonth-1] / 10);
+				if ((currentMonth >= 1) && (currentMonth <= 12))
+				{
+					Send_modebus_command_06(STATE_ELEC_MON_L + PARAMETER_20_START_ADDRESS, yearlyElectricityNum[currentMonth - 1] / 10);
+				}
 			}
 
 			write_dgus_vp(DISP_Electricity_H1,(u8*)&dailyElectricityNum,24);//把每小时电量写入VP中
@@ -1840,12 +1906,6 @@ void Electricity_process(void)
 			if (saveHourCounter >= 36)// 每 6 小时保存一次电量数据到 EEPROM 每十分钟累加一次
 			{
 				saveHourCounter = 0; // 重置计数器
-				//write_dgus_vp(ELECTRICITY_STATISTICS_YEAR, (u8 *)&system.year, 1);
-				Wite_VP(ELECTRICITY_STATISTICS_YEAR,system.year);
-				//write_dgus_vp(ELECTRICITY_STATISTICS_MONTH, (u8 *)&system.month, 1);
-				Wite_VP(ELECTRICITY_STATISTICS_MONTH,system.month);
-				//write_dgus_vp(ELECTRICITY_STATISTICS_DAY, (u8 *)&system.date, 1);
-				Wite_VP(ELECTRICITY_STATISTICS_DAY,system.date);
 				Persist_Elec_Stats_VP();
 				EEPROM_Write_page(); // 保存电量数据到 EEPROM
 			}
@@ -1861,6 +1921,11 @@ void Electricity_process(void)
 			Trend_Shift_Push(trendHourElectricity, 24, lastHourElectricity);
 			trendHourElectricity[23] = 0;
 			totalHour = 0;
+			if (currentHour <= 23)
+			{
+				dailyElectricityNum[currentHour] = 0;
+			}
+			write_dgus_vp(DISP_Electricity_H1, (u8 *)&dailyElectricityNum, 24);
 			Persist_Elec_Stats_VP();
 			Display_Electricity_Curve();
 			Display_Electricity_Stats();
@@ -1883,6 +1948,11 @@ void Electricity_process(void)
 			totalDay = 0; 
 			memset(dailyElectricityNum, 0, sizeof(dailyElectricityNum)); // 清空小时电量数组
 			write_dgus_vp(DISP_Electricity_H1,(u8*)&dailyElectricityNum,24);//把每小时电量写入VP中
+			if ((currentDate >= 1) && (currentDate <= 31))
+			{
+				monthlyElectricityNum[currentDate - 1] = 0;
+				write_dgus_vp(DISP_Electricity_D1, (u8 *)&monthlyElectricityNum, 31);
+			}
 			Persist_Elec_Stats_VP();
 			Display_Electricity_Curve();
 			Display_Electricity_Stats();
@@ -1906,6 +1976,11 @@ void Electricity_process(void)
 			totalMonth = 0; 
 			memset(monthlyElectricityNum, 0, sizeof(monthlyElectricityNum)); // 清空天电量数组
 			write_dgus_vp(DISP_Electricity_D1,(u8*)&monthlyElectricityNum,31);//把每天电量写入VP中
+			if ((currentMonth >= 1) && (currentMonth <= 12))
+			{
+				yearlyElectricityNum[currentMonth - 1] = 0;
+				write_dgus_vp(DISP_Electricity_M1, (u8 *)&yearlyElectricityNum, 12);
+			}
 			Persist_Elec_Stats_VP();
 			Display_Electricity_Curve();
 			Display_Electricity_Stats();
@@ -1918,13 +1993,21 @@ void Electricity_process(void)
 	}	
 	if(currentMonth == 1 && currentDate == 1 && currentHour == 0 && currentMinute == 0&& currentSecond<=3)
 	{
-		totalMonth = 0; // 重置年电量
-		memset(yearlyElectricityNum, 0, sizeof(yearlyElectricityNum)); // 清空月电量数组
-		write_dgus_vp(DISP_Electricity_M1,(u8*)&yearlyElectricityNum,12);//把每月电量写入VP中
-		Persist_Elec_Stats_VP();
-		Display_Electricity_Curve();
-		Display_Electricity_Stats();
-		EEPROM_Write_page(); // 保存电量数据到 EEPROM
+		if (yearRolloverDone == 0)
+		{
+			yearRolloverDone = 1;
+			totalMonth = 0; // 重置年电量
+			memset(yearlyElectricityNum, 0, sizeof(yearlyElectricityNum)); // 清空月电量数组
+			write_dgus_vp(DISP_Electricity_M1,(u8*)&yearlyElectricityNum,12);//把每月电量写入VP中
+			Persist_Elec_Stats_VP();
+			Display_Electricity_Curve();
+			Display_Electricity_Stats();
+			EEPROM_Write_page(); // 保存电量数据到 EEPROM
+		}
+	}
+	else if (!(currentMonth == 1 && currentDate == 1 && currentHour == 0 && currentMinute == 0))
+	{
+		yearRolloverDone = 0;
 	}
 }
 
@@ -2154,7 +2237,7 @@ void Display_Electricity_Curve(void)
 	{
 		Write_CH4_Electricity_Curve(monthlyElectricityNum, 31);
 	}
-	else if (page == 206)
+	else if (page == 206 || page == 207)
 	{
 		Write_CH4_Electricity_Curve(yearlyElectricityNum, 12);
 	}
