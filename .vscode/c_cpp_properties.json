@@ -1,0 +1,45 @@
+{
+    "configurations": [
+        {
+            "name": "Target 1",
+            "includePath": [
+                "d:\\work\\02-开发项目\\2025\\01-采暖机\\09 314-00-12-00198_迪文_自主采暖4.3WIFI线控器_带温湿度传感器\\V1.3\\NET-DK-L1001-DB-V130A1 -20251023\\C51_20251018\\User",
+                "d:\\work\\02-开发项目\\2025\\01-采暖机\\09 314-00-12-00198_迪文_自主采暖4.3WIFI线控器_带温湿度传感器\\V1.3\\NET-DK-L1001-DB-V130A1 -20251023\\C51_20251018\\User\\HeadFiles",
+                "d:\\work\\02-开发项目\\2025\\01-采暖机\\09 314-00-12-00198_迪文_自主采暖4.3WIFI线控器_带温湿度传感器\\V1.3\\NET-DK-L1001-DB-V130A1 -20251023\\C51_20251018\\FWLib\\Dwin_Lib\\inc",
+                "d:\\work\\02-开发项目\\2025\\01-采暖机\\09 314-00-12-00198_迪文_自主采暖4.3WIFI线控器_带温湿度传感器\\V1.3\\NET-DK-L1001-DB-V130A1 -20251023\\C51_20251018\\FWLib\\Dwin_Lib\\src",
+                "d:\\work\\02-开发项目\\2025\\01-采暖机\\09 314-00-12-00198_迪文_自主采暖4.3WIFI线控器_带温湿度传感器\\V1.3\\NET-DK-L1001-DB-V130A1 -20251023\\C51_20251018\\Drivers\\tuya_wifi",
+                "d:\\work\\02-开发项目\\2025\\01-采暖机\\09 314-00-12-00198_迪文_自主采暖4.3WIFI线控器_带温湿度传感器\\V1.3\\NET-DK-L1001-DB-V130A1 -20251023\\C51_20251018\\Apps",
+                "D:\\Program Files (x86)\\Keil_v5\\C51\\INC",
+                "d:\\work\\02-开发项目\\2025\\01-采暖机\\09 314-00-12-00198_迪文_自主采暖4.3WIFI线控器_带温湿度传感器\\V1.3\\NET-DK-L1001-DB-V130A1 -20251023\\C51_20251018"
+            ],
+            "defines": [
+                "Quectel_tx_WiFi",
+                "Brand_ENERGY",
+                "__C51__",
+                "__VSCODE_C51__",
+                "reentrant=",
+                "compact=",
+                "small=",
+                "large=",
+                "data=",
+                "idata=",
+                "pdata=",
+                "bdata=",
+                "xdata=",
+                "code=",
+                "bit=char",
+                "sbit=char",
+                "sfr=char",
+                "sfr16=int",
+                "sfr32=int",
+                "interrupt=",
+                "using=",
+                "_at_=",
+                "_priority_=",
+                "_task_="
+            ],
+            "intelliSenseMode": "${default}"
+        }
+    ],
+    "version": 4
+}

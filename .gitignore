@@ -1,0 +1,27 @@
+.DS_Store
+Thumbs.db
+
+# Keil uVision user-specific GUI state
+*.uvgui.*
+*.uvgui_*.bak
+*.bak
+
+# Build outputs
+Objects/
+Listings/
+*.obj
+*.lst
+*.m51
+*.lnp
+*.plg
+*.build_log.htm
+*.__i
+*.iex
+*.sbr
+*.hex
+*.o
+*.d
+
+# VS Code logs
+.vscode/*.log
+.vscode/*.lock
